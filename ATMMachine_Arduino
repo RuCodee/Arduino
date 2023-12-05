@@ -1,0 +1,243 @@
+//check out circuit on our youtube channel #RuCodee
+/* this project is about an ATM Machine. Once the Arduino is plugged-in it gives a simple message like "ATM Ready".
+Components:
+
+Arduino Uno x 1pcs
+Breadboard x 1pcs
+Push Button x 3pcs
+Red LED x 1pcs
+Green LED x 1pcs
+220 Ω x 5pcs
+Wires
+
+Working process:
+1) When starting the program, the red led starts to blink and the text ‘enter pin’ appears in the Serial Monitor.
+2) Next, the user enters a 4-digit code, by pressing the buttons. The password is 2-3-1-1.
+3) Each time a button is being pressed; the corresponding number appears in the Serial Monitor.
+4) After entering the fourth number, the text ‘Code entered, checking…’ appears on the Serial Monitor.
+5) Only if the entered code matches a pre-saved code, the green LED will light up for one second and the text ‘safe open’ will appear.
+6) In case of an incorrect code, the red led flashes 3 times and the text ‘invalid code’ appears.
+7) After this, the red led will light up again and the text ‘enter pin’ appears. 
+
+*/
+
+#include <Keypad.h>
+
+// Keypad setup
+const byte ROWS = 4; // four rows
+const byte COLS = 4; // four columns
+char keys[ROWS][COLS] = {
+  {'1','2','3','A'},
+  {'4','5','6','B'},
+  {'7','8','9','C'},
+  {'*','0','#','D'}
+};
+byte rowPins[ROWS] = {5, 4, 3, 2}; // Connect to the row pinouts of the keypad
+byte colPins[COLS] = {9, 8, 7, 6}; // Connect to the column pinouts of the keypad
+Keypad myKeypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
+
+// Ultrasonic sensor setup
+const int ultrasonicPin = A0; // Pin for ultrasonic sensor
+
+// Motor setup
+const int motorPin = 10; // Motor pin
+
+// LED setup
+const int redLedPin = 13;
+const int greenLedPin = 12; // Green LED on pin 12
+
+// Secret PIN setup
+const int secretPin[4] = {1, 2, 3, 4}; // The correct PIN
+int enteredPin[4];
+int pinIndex = 0;
+int balance = 1000; // Starting balance
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(redLedPin, OUTPUT);
+  pinMode(greenLedPin, OUTPUT);
+  pinMode(ultrasonicPin, OUTPUT);
+  pinMode(motorPin, OUTPUT);
+
+  Serial.println("ATM Ready");
+}
+
+void loop() {
+  if (cardDetected()) {
+    Serial.println("*************************");
+    Serial.println("  CREDIT CARD INSERTED");
+    Serial.println("------------------------------------");
+    Serial.println("Enter PIN to explore more");
+    Serial.println("         _ _ _ _");
+
+    bool accessGranted = false;
+    int attempts = 0;
+
+    while (attempts < 3 && !accessGranted) {
+      accessGranted = checkPassword();
+      attempts++;
+      if (!accessGranted && attempts < 3) {
+        Serial.println("Incorrect PIN. Try again.");
+        for(int i=0; i<3; i++){
+        digitalWrite(redLedPin, HIGH);
+        delay(80);
+        digitalWrite(redLedPin, LOW);
+        delay(80);
+        }
+      }
+    }
+
+    if (accessGranted) {
+      Serial.println("");
+      Serial.println("Checking...");
+      digitalWrite(greenLedPin, HIGH);
+      delay(400);
+      digitalWrite(greenLedPin, LOW);
+      performTransactions();
+    } else {
+      Serial.println("****WRONG PASSWORD****");
+      Serial.println("Try later and visit your bank app for more information.");
+      Serial.println("www.bankruchira.com");
+    }
+    // Reset for next card detection
+    delay(100);
+  }
+}
+
+bool cardDetected() {
+  // Ultrasonic sensor logic
+  pinMode(ultrasonicPin, OUTPUT);
+  digitalWrite(ultrasonicPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(ultrasonicPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(ultrasonicPin, LOW);
+  
+  pinMode(ultrasonicPin, INPUT);
+  long duration = pulseIn(ultrasonicPin, HIGH);
+  long distance = duration * 0.034 / 2;
+  return distance < 10; // Card detected within 10 cm
+}
+
+bool checkPassword() {
+  memset(enteredPin, 0, sizeof(enteredPin)); // Clear the entered PIN
+  pinIndex = 0;
+  char key;
+  while (pinIndex < 4) {
+    key = myKeypad.getKey();
+    if (key != NO_KEY) {
+      if (isdigit(key)) {
+        Serial.print("*");
+        enteredPin[pinIndex] = key - '0'; // Convert char to int
+        pinIndex++;
+      }
+      delay(100); // Debounce delay
+    }
+  }
+  // Compare entered PIN with secret PIN
+  for (int i = 0; i < 4; i++) {
+    if (enteredPin[i] != secretPin[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void performTransactions() {
+  Serial.println("***WELCOME TO YOUR ACCOUNT***");
+  Serial.println("Select 'A' for balance, 'B' for withdrawal.");
+  char key = myKeypad.waitForKey();
+  if (key == 'A') {
+    displayBalance();
+  } else if (key == 'B') {
+    processWithdrawal();
+  }
+}
+
+void displayBalance() {
+  Serial.print("Current Balance: EURO ");
+  Serial.println(balance);
+  
+  // Ask the user if they want to withdraw money or exit
+  Serial.println("Press 'B' to withdraw money, or any other key to exit.");
+  char key = myKeypad.waitForKey(); // Wait for user input
+  
+  if (key == 'B') {
+    processWithdrawal(); // If the user chooses to withdraw money
+  } else {
+    Serial.println("****HAVE A NICE DAY****");
+    Serial.println("www.bankruchira.com");
+  }
+}
+
+void processWithdrawal() {
+  Serial.println("****WITHDRAWING****");
+  Serial.println("Insert the amount:");
+  
+  int withdrawalAmount = getWithdrawalAmount();
+  if (withdrawalAmount <= balance) {
+    dispenseMoney();
+    withdrawalComplete(withdrawalAmount);
+  } else {
+    Serial.println("****ALERT****");
+    Serial.println("YOUR CURRENT BALANCE IS: EURO " + String(balance) + ". You cannot withdraw: EURO " + String(withdrawalAmount) + ".");
+    postWithdrawalOptions(); //option 1 and 2 when the balance is not enough.
+  }
+}
+
+void postWithdrawalOptions() {
+  Serial.println("");
+  Serial.println("Press 1 to Withdraw Again");
+  Serial.println("Press any other key to Exit.");
+
+  char key = myKeypad.waitForKey(); // Wait for user input
+
+  if (key == '1') {
+    processWithdrawal(); // If the user chooses to withdraw again
+  } else {
+    // Any other key will trigger the exit option
+    Serial.println("****HAVE A NICE DAY****");
+    Serial.println("www.bankruchira.com");
+    // Optionally, reset the system for the next transaction here
+  }
+}
+
+int getWithdrawalAmount() {
+  int amount = 0; // Variable to store the entered amount
+  char key; // Variable to store the key pressed
+
+  while (true) {
+    key = myKeypad.getKey(); // Get the key pressed
+
+    if (key == '#') { // If '#' is pressed, end the input
+      break;
+    }
+
+    if (key >= '0' && key <= '9') { // Check if the key is a digit
+      amount = amount * 10 + (key - '0'); // Convert char to int and add it to amount
+      Serial.print(key); // Optional: Echo the key pressed
+    }
+
+    delay(10); // Small delay for keypad debounce
+  }
+
+  Serial.println(); // Print a new line for clarity
+  return amount; // Return the entered amount
+}
+
+void withdrawalComplete(int amount) {
+  balance -= amount;
+  Serial.println("****WITHDRAW COMPLETED****");
+  Serial.print("Your current balance is: EURO ");
+  Serial.println(balance); // This will print the balance and then move to a new line
+  Serial.println("We will send you the receipt on email. SAVE TREES SAVE PLANET.");
+  Serial.println("Visit your bank app for more information.");
+  Serial.println("www.bankruchira.com");
+  Serial.println("****END****");
+}
+
+void dispenseMoney() {
+  digitalWrite(motorPin, HIGH); // Activate the motor
+  delay(500); // Wait for 5 seconds
+  digitalWrite(motorPin, LOW); // Stop the motor
+}
