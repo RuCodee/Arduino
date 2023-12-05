@@ -1,0 +1,34 @@
+//circuit board on our youtube #rucodee
+//this code will turn your LED light On/Off using a single push up button. 
+
+const int buttonPin = 3; // the number of the pushbutton pin
+const int ledPin =  2;  // the number of the LED pin
+
+int buttonState = 0;     // variable for reading the pushbutton status
+bool ledState = false;   // variable to hold the state of LED
+
+void setup() {
+  pinMode(ledPin, OUTPUT);   // initialize the LED pin as an output
+  pinMode(buttonPin, INPUT); // initialize the pushbutton pin as an input
+}
+
+void loop(){
+  int currentButtonState = digitalRead(buttonPin);
+
+  // Check if button state changed from high to low (button press)
+  if (currentButtonState == LOW && buttonState == HIGH){
+    // Change the LED state
+    ledState = !ledState;
+   if (ledState) {
+    digitalWrite(ledPin, HIGH);
+  } else {
+    digitalWrite(ledPin, LOW);
+  }
+  }
+
+  // Save the current state as the last state, for next loop iteration
+  buttonState = currentButtonState;
+
+  // Delay a little bit to avoid bouncing
+  delay(50);
+}
